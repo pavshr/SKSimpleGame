@@ -8,6 +8,13 @@
 
 import SpriteKit
 
+struct PhysicsCategoty {
+    static let None : UInt32 = 0
+    static let All : UInt32 = UInt32.max
+    static let Monster : UInt32 = 0b1 // 1
+    static let Projectile : UInt32 = 0b10 // 2
+}
+
 func + (left: CGPoint, right: CGPoint) -> CGPoint {
     return CGPoint(x: left.x + right.x, y: left.y + right.y)
 }
@@ -40,7 +47,7 @@ extension CGPoint {
     }
 }
 
-class GameScene: SKScene {
+class GameScene: SKScene, SKPhysicsContactDelegate {
     // 1
     let player = SKSpriteNode(imageNamed: "player")
     
@@ -51,6 +58,7 @@ class GameScene: SKScene {
         player.position = CGPoint(x: size.width * 0.1, y: size.height * 0.5)
         // 4
         addChild(player)
+        physicsWorld.gravity = CGVectorMake(0, 0)
         runAction(SKAction.repeatActionForever(
             SKAction.sequence([
                 SKAction.runBlock(addMonster),
@@ -82,6 +90,13 @@ class GameScene: SKScene {
         // Add the monster to the scene
         addChild(monster)
         
+        // Determine physics
+        monster.physicsBody = SKPhysicsBody(rectangleOfSize: monster.size) // 1
+        monster.physicsBody?.dynamic = true // 2
+        monster.physicsBody?.categoryBitMask = PhysicsCategoty.Monster // 3
+        monster.physicsBody?.contactTestBitMask = PhysicsCategoty.Projectile // 4
+        monster.physicsBody?.collisionBitMask = PhysicsCategoty.None // 5
+        
         // Determine speed of the monster
         let actualDuration = random(min: CGFloat(2.0), max: CGFloat(4.0))
         
@@ -94,35 +109,43 @@ class GameScene: SKScene {
     
     override func touchesEnded(touches: Set<UITouch>, withEvent event: UIEvent?) {
         
-        // 1 - Choose one of the touches to work with
+        // Choose one of the touches to work with
         guard let touch = touches.first else {
             return
         }
         let touchLocation = touch.locationInNode(self)
         
-        // 2 - Set up initial location of projectile
+        // Set up initial location of projectile
         let projectile = SKSpriteNode(imageNamed: "projectile")
         projectile.position = player.position
         
-        // 3 - Determine offset of location to projectile
+        // Determine physics
+        projectile.physicsBody = SKPhysicsBody(circleOfRadius: projectile.size.width/2)
+        projectile.physicsBody?.dynamic = true
+        projectile.physicsBody?.categoryBitMask = PhysicsCategoty.Projectile
+        projectile.physicsBody?.contactTestBitMask = PhysicsCategoty.Monster
+        projectile.physicsBody?.collisionBitMask = PhysicsCategoty.None
+        projectile.physicsBody?.usesPreciseCollisionDetection = true
+        
+        // Determine offset of location to projectile
         let offset = touchLocation - projectile.position
         
-        // 4 - Bail out if you are shooting down or backwards
+        // Bail out if you are shooting down or backwards
         if (offset.x < 0) { return }
         
-        // 5 - OK to add now - you've double checked position
+        // OK to add now - you've double checked position
         addChild(projectile)
         
-        // 6 - Get the direction of where to shoot
+        // Get the direction of where to shoot
         let direction = offset.normalized()
         
-        // 7 - Make it shoot far enough to be guaranteed off screen
+        // Make it shoot far enough to be guaranteed off screen
         let shootAmount = direction * 1000
         
-        // 8 - Add the shoot amount to the current position
+        // Add the shoot amount to the current position
         let realDest = shootAmount + projectile.position
         
-        // 9 - Create the actions
+        // Create the actions
         let actionMove = SKAction.moveTo(realDest, duration: 2.0)
         let actionMoveDone = SKAction.removeFromParent()
         projectile.runAction(SKAction.sequence([actionMove, actionMoveDone]))
